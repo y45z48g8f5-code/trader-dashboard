@@ -654,7 +654,7 @@ function drawTimeShareChart(code, currentPrice, prevClose){
     ctx.scale(2,2);
 
     const w = rect.width, h = rect.height;
-    const pad = { t:15, b:30, l:40, r:15 };
+    const pad = { t:15, b:30, l:50, r:15 };
     const cw = w - pad.l - pad.r;
     const ch = h - pad.t - pad.b;
     const steps = 240;
@@ -701,7 +701,6 @@ function drawTimeShareChart(code, currentPrice, prevClose){
 
       // Y轴网格 + 价格刻度
       ctx.textAlign = 'right';
-      ctx.textBaseline = 'middle';
       ctx.font = '10px sans-serif';
       ctx.fillStyle = '#8b949e';
       for(let i=0;i<=4;i++){
@@ -709,15 +708,17 @@ function drawTimeShareChart(code, currentPrice, prevClose){
         ctx.strokeStyle = '#21262d';
         ctx.lineWidth = 0.5;
         ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+cw, y); ctx.stroke();
-        ctx.fillText((maxP - (maxP-minP)*i/4).toFixed(2), pad.l - 5, y);
+        // 底部价格标签用 top 对齐，避免与时间轴重叠
+        ctx.textBaseline = i === 4 ? 'bottom' : 'middle';
+        ctx.fillText((maxP - (maxP-minP)*i/4).toFixed(2), pad.l - 6, i === 4 ? y - 3 : y);
       }
 
-      // X轴时间轴
+      // X轴时间轴（跳过首尾避免重叠）
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.font = '10px sans-serif';
       ctx.fillStyle = '#8b949e';
-      [0,30,60,90,120,150,180,210,239].forEach(i => {
+      [30,60,90,120,150,180,210].forEach(i => {
         const x = xf(i);
         ctx.fillText(getTime(i), x, pad.t+ch+2);
         ctx.strokeStyle = '#1c2333';
@@ -832,7 +833,15 @@ function drawTimeShareChart(code, currentPrice, prevClose){
         ctx.strokeStyle = '#30363d';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.roundRect(tx, ty, tw, th, 6);
+        ctx.moveTo(tx+6, ty); ctx.lineTo(tx+tw-6, ty);
+        ctx.quadraticCurveTo(tx+tw, ty, tx+tw, ty+6);
+        ctx.lineTo(tx+tw, ty+th-6);
+        ctx.quadraticCurveTo(tx+tw, ty+th, tx+tw-6, ty+th);
+        ctx.lineTo(tx+6, ty+th);
+        ctx.quadraticCurveTo(tx, ty+th, tx, ty+th-6);
+        ctx.lineTo(tx, ty+6);
+        ctx.quadraticCurveTo(tx, ty, tx+6, ty);
+        ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
