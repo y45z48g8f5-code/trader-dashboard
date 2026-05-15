@@ -167,7 +167,7 @@ body{background:#0d1117;color:#e6edf3;font-size:14px;overflow:hidden;height:100v
     <input type="password" id="pwdInput" placeholder="请输入登录密码" autofocus>
     <button class="login-btn" id="loginBtn">登录</button>
     <div class="error" id="pwdError">❌ 密码错误，请重新输入</div>
-    <div class="hint">🔑 临时密码可在设置中修改</div>
+    <div class="hint">如需密码请联系帅气的永辉</div>
   </div>
 </div>
 
@@ -473,7 +473,7 @@ function fetchStockData(code, showLoading=true){
         const volRatio = volume > 0 ? +(volume / 50000).toFixed(2) : +(Math.random()*2+0.5).toFixed(2);
         const tailRatio = +(Math.random()*1.5+0.5).toFixed(2);
         renderAnalysis(code, name, price, changePct, high, low, open, prevClose, volRatio, tailRatio, volume, amount, true);
-        setDataStatus('live', '● 新浪实时数据');
+        setDataStatus('live', '● 实时数据');
         return;
       }
     }
