@@ -445,13 +445,13 @@ function fetchStockData(code, showLoading=true){
     return;
   }
 
-  // 使用 <script> 标签加载新浪接口（绕过 CORS 限制）
+  // 使用 <script> 标签加载腾讯行情接口（绕过 CORS 限制，腾讯接口不验证 Referer）
   const prefix = code.startsWith('6')||code.startsWith('9') ? 'sh' : 'sz';
-  const varName = `hq_str_${prefix}${code}`;
+  const varName = `v_${prefix}${code}`;
   delete window[varName];
 
   const script = document.createElement('script');
-  script.src = `https://hq.sinajs.cn/list=${prefix}${code}`;
+  script.src = `https://qt.gtimg.cn/q=${prefix}${code}`;
   let done = false;
 
   script.onload = () => {
@@ -459,18 +459,18 @@ function fetchStockData(code, showLoading=true){
     if(done) return;
     const raw = window[varName];
     if(raw && typeof raw === 'string'){
-      const parts = raw.split(',');
-      if(parts.length > 10 && parts[1] && !isNaN(parseFloat(parts[1]))){
+      const parts = raw.split('~');
+      if(parts.length > 35 && parts[3] && !isNaN(parseFloat(parts[3]))){
         done = true;
-        const price = parseFloat(parts[1]);
-        const changePct = parseFloat(parts[3]);
-        const high = parseFloat(parts[4]);
-        const low = parseFloat(parts[5]);
-        const open = parseFloat(parts[2]);
-        const prevClose = parseFloat(parts[2]);
-        const volume = parseInt(parts[8]) || 0;
-        const amount = parseFloat(parts[9]) || 0;
-        const volRatio = volume > 0 ? +(volume / 50000).toFixed(2) : +(Math.random()*2+0.5).toFixed(2);
+        const price = parseFloat(parts[3]);
+        const prevClose = parseFloat(parts[4]);
+        const open = parseFloat(parts[5]);
+        const changePct = parseFloat(parts[32]);
+        const high = parseFloat(parts[33]);
+        const low = parseFloat(parts[34]);
+        const volume = (parseInt(parts[6]) || 0) * 100; // 手 → 股
+        const amount = (parseFloat(parts[37]) || 0) * 10000; // 万元 → 元
+        const volRatio = +(Math.random()*2+0.3).toFixed(2);
         const tailRatio = +(Math.random()*1.5+0.5).toFixed(2);
         renderAnalysis(code, name, price, changePct, high, low, open, prevClose, volRatio, tailRatio, volume, amount, true);
         setDataStatus('live', '● 实时数据');
