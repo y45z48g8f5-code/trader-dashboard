@@ -643,7 +643,8 @@ function drawTimeShareChart(code, currentPrice, prevClose){
   setTimeout(()=>{
     const canvas = document.getElementById('timeShareChart');
     if(!canvas) return;
-    const rect = canvas.parentElement.getBoundingClientRect();
+    const parent = canvas.parentElement;
+    const rect = parent.getBoundingClientRect();
     canvas.width = rect.width * 2;
     canvas.height = rect.height * 2;
     canvas.style.width = rect.width+'px';
@@ -653,33 +654,27 @@ function drawTimeShareChart(code, currentPrice, prevClose){
     ctx.scale(2,2);
 
     const w = rect.width, h = rect.height;
-    const pad = { t:15, b:15, l:40, r:15 };
+    const pad = { t:15, b:30, l:40, r:15 };
     const cw = w - pad.l - pad.r;
     const ch = h - pad.t - pad.b;
     const steps = 240;
     const basePrice = prevClose || currentPrice * 0.99;
     const maxP = basePrice * 1.02;
     const minP = basePrice * 0.98;
+    const isUp = currentPrice >= basePrice;
+    const mainClr = isUp ? '#f85149' : '#3fb950';
 
-    ctx.clearRect(0,0,w,h);
-
-    // 背景网格
-    ctx.strokeStyle = '#21262d';
-    ctx.lineWidth = 0.5;
-    for(let i=0;i<=4;i++){
-      const y = pad.t + ch * i / 4;
-      ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+cw, y); ctx.stroke();
+    function getTime(i){
+      if(i <= 120){
+        const m = 9 * 60 + 30 + i;
+        return `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`;
+      } else {
+        const m = 13 * 60 + (i - 120);
+        return `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`;
+      }
     }
 
-    // 均线
-    const avgPoints = [];
-    for(let i=0;i<steps;i++){
-      const t = i / steps;
-      const noise = Math.sin(t*8)*0.3 + Math.sin(t*3)*0.2 + (Math.random()-0.5)*0.15;
-      avgPoints.push(basePrice + (basePrice * 0.01 * noise));
-    }
-
-    // 价格线
+    // 生成价格数据
     const pricePoints = [];
     for(let i=0;i<steps;i++){
       const t = i / steps;
@@ -687,72 +682,182 @@ function drawTimeShareChart(code, currentPrice, prevClose){
       const offset = (i < steps-1) ? (basePrice * 0.012 * noise) : (currentPrice - basePrice);
       pricePoints.push(basePrice + offset);
     }
-    // 最后一点匹配当前价
     pricePoints[steps-1] = currentPrice;
+
+    // 均线数据
+    const avgPoints = [];
+    for(let i=0;i<steps;i++){
+      const t = i / steps;
+      const noise = Math.sin(t*8)*0.3 + Math.sin(t*3)*0.2 + (Math.random()-0.5)*0.15;
+      avgPoints.push(basePrice + (basePrice * 0.01 * noise));
+    }
 
     const xf = (i) => pad.l + cw * i / steps;
     const yf = (v) => pad.t + ch * (1 - (v - minP) / (maxP - minP));
 
-    // 价格线填充
-    ctx.beginPath();
-    ctx.moveTo(xf(0), pad.t+ch);
-    for(let i=0;i<steps;i++) ctx.lineTo(xf(i), yf(pricePoints[i]));
-    ctx.lineTo(xf(steps-1), pad.t+ch);
-    ctx.closePath();
-    const grad = ctx.createLinearGradient(0,pad.t,0,pad.t+ch);
-    const c = currentPrice >= basePrice ? 'rgba(248,81,73,' : 'rgba(63,185,80,';
-    grad.addColorStop(0, c+'0.2)');
-    grad.addColorStop(1, c+'0.02)');
-    ctx.fillStyle = grad;
-    ctx.fill();
+    // ──── 统一渲染（含 hover 交互） ────
+    function render(hoverIdx){
+      ctx.clearRect(0,0,w,h);
 
-    // 价格线
-    ctx.beginPath();
-    for(let i=0;i<steps;i++){
-      if(i===0) ctx.moveTo(xf(i), yf(pricePoints[i]));
-      else ctx.lineTo(xf(i), yf(pricePoints[i]));
+      // Y轴网格 + 价格刻度
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.font = '10px sans-serif';
+      ctx.fillStyle = '#8b949e';
+      for(let i=0;i<=4;i++){
+        const y = pad.t + ch * i / 4;
+        ctx.strokeStyle = '#21262d';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+cw, y); ctx.stroke();
+        ctx.fillText((maxP - (maxP-minP)*i/4).toFixed(2), pad.l - 5, y);
+      }
+
+      // X轴时间轴
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = '10px sans-serif';
+      ctx.fillStyle = '#8b949e';
+      [0,30,60,90,120,150,180,210,239].forEach(i => {
+        const x = xf(i);
+        ctx.fillText(getTime(i), x, pad.t+ch+2);
+        ctx.strokeStyle = '#1c2333';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.moveTo(x, pad.t+ch); ctx.lineTo(x, pad.t+ch+4); ctx.stroke();
+      });
+
+      // 价格线填充
+      ctx.beginPath();
+      ctx.moveTo(xf(0), pad.t+ch);
+      for(let i=0;i<steps;i++) ctx.lineTo(xf(i), yf(pricePoints[i]));
+      ctx.lineTo(xf(steps-1), pad.t+ch);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0,pad.t,0,pad.t+ch);
+      grad.addColorStop(0, mainRgba + '0.2)');
+      grad.addColorStop(1, mainRgba + '0.02)');
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // 价格线
+      ctx.beginPath();
+      for(let i=0;i<steps;i++){
+        if(i===0) ctx.moveTo(xf(i), yf(pricePoints[i]));
+        else ctx.lineTo(xf(i), yf(pricePoints[i]));
+      }
+      ctx.strokeStyle = mainClr;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // 均线
+      ctx.beginPath();
+      for(let i=0;i<steps;i++){
+        if(i===0) ctx.moveTo(xf(i), yf(avgPoints[i]));
+        else ctx.lineTo(xf(i), yf(avgPoints[i]));
+      }
+      ctx.strokeStyle = '#d29922';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3,3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 基准线
+      const baseY = yf(basePrice);
+      ctx.strokeStyle = '#30363d';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.moveTo(pad.l, baseY); ctx.lineTo(pad.l+cw, baseY); ctx.stroke();
+
+      // 昨收标注
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = '#8b949e';
+      ctx.font = '10px sans-serif';
+      ctx.fillText('昨收 '+basePrice.toFixed(2), pad.l+4, baseY-2);
+
+      // 现价标注（右上角）
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = mainClr;
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText('现 '+currentPrice.toFixed(2), pad.l+cw-2, pad.t+2);
+
+      // 低吸/高抛标记
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      const buyY = yf(basePrice * 0.992);
+      const sellY = yf(basePrice * 1.008);
+      ctx.fillStyle = '#3fb950';
+      ctx.font = '11px sans-serif';
+      ctx.fillText('▼ 低吸区', pad.l+10, buyY);
+      ctx.fillStyle = '#f85149';
+      ctx.fillText('▲ 高抛区', pad.l+10, Math.min(sellY, pad.t+ch-5));
+
+      // ──── 悬浮十字线与提示框 ────
+      if(hoverIdx >= 0 && hoverIdx < steps){
+        const hx = xf(hoverIdx);
+        const hy = yf(pricePoints[hoverIdx]);
+
+        // 十字线
+        ctx.save();
+        ctx.setLineDash([3,3]);
+        ctx.strokeStyle = '#8b949e';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.moveTo(hx, pad.t); ctx.lineTo(hx, pad.t+ch); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(pad.l, hy); ctx.lineTo(pad.l+cw, hy); ctx.stroke();
+        ctx.restore();
+
+        // 圆点
+        ctx.beginPath();
+        ctx.arc(hx, hy, 4, 0, Math.PI*2);
+        ctx.fillStyle = mainClr;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // 提示框
+        const p = pricePoints[hoverIdx];
+        const chg = p - basePrice;
+        const chgPct = chg / basePrice * 100;
+        const lines = [
+          `时间: ${getTime(hoverIdx)}`,
+          `价格: ${p.toFixed(2)}`,
+          `涨跌: ${chg>=0?'+':''}${chg.toFixed(2)} (${chgPct>=0?'+':''}${chgPct.toFixed(2)}%)`,
+        ];
+        const tw = 134, tlh = 18, th = lines.length * tlh + 12;
+        let tx = hx + 15, ty = hy - th/2;
+        if(tx + tw > pad.l + cw) tx = hx - tw - 15;
+        if(ty < pad.t) ty = pad.t;
+        if(ty + th > pad.t + ch) ty = pad.t + ch - th;
+
+        ctx.fillStyle = 'rgba(13,17,23,0.92)';
+        ctx.strokeStyle = '#30363d';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(tx, ty, tw, th, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        lines.forEach((l, i) => {
+          ctx.fillStyle = i === 1 ? mainClr : '#e6edf3';
+          ctx.fillText(l, tx + 10, ty + 8 + i * tlh + tlh/2);
+        });
+      }
     }
-    ctx.strokeStyle = currentPrice >= basePrice ? '#f85149' : '#3fb950';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
 
-    // 均线
-    ctx.beginPath();
-    for(let i=0;i<steps;i++){
-      if(i===0) ctx.moveTo(xf(i), yf(avgPoints[i]));
-      else ctx.lineTo(xf(i), yf(avgPoints[i]));
-    }
-    ctx.strokeStyle = '#d29922';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3,3]);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    // 首次绘制
+    render(-1);
 
-    // 基准线
-    const baseY = yf(basePrice);
-    ctx.beginPath();
-    ctx.moveTo(pad.l, baseY);
-    ctx.lineTo(pad.l+cw, baseY);
-    ctx.strokeStyle = '#30363d';
-    ctx.lineWidth = 0.5;
-    ctx.stroke();
+    // ──── 鼠标交互 ────
+    canvas.onmousemove = function(e){
+      const cr = canvas.getBoundingClientRect();
+      const mx = e.clientX - cr.left;
+      const idx = Math.round((mx - pad.l) / cw * steps);
+      render(idx >= 0 && idx < steps ? idx : -1);
+    };
+    canvas.onmouseleave = function(){ render(-1); };
 
-    // 价格标签
-    ctx.fillStyle = '#8b949e';
-    ctx.font = '10px sans-serif';
-    ctx.fillText(currentPrice.toFixed(2), pad.l+cw-60, pad.t+12);
-
-    // 中点价格
-    ctx.fillText(basePrice.toFixed(2), 2, baseY+4);
-
-    // 低吸/高抛标记
-    const buyY = yf(basePrice * 0.992);
-    const sellY = yf(basePrice * 1.008);
-    ctx.fillStyle = '#3fb950';
-    ctx.font = '11px sans-serif';
-    ctx.fillText('▼ 低吸区', pad.l+10, buyY);
-    ctx.fillStyle = '#f85149';
-    ctx.fillText('▲ 高抛区', pad.l+10, Math.min(sellY, pad.t+ch-5));
   }, 50);
 }
 
