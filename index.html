@@ -663,6 +663,7 @@ function drawTimeShareChart(code, currentPrice, prevClose){
     const minP = basePrice * 0.98;
     const isUp = currentPrice >= basePrice;
     const mainClr = isUp ? '#f85149' : '#3fb950';
+    const mainRgba = isUp ? 'rgba(248,81,73,' : 'rgba(63,185,80,';
 
     function getTime(i){
       if(i <= 120){
