@@ -167,7 +167,7 @@ body{background:#0d1117;color:#e6edf3;font-size:14px;overflow:hidden;height:100v
     <input type="password" id="pwdInput" placeholder="请输入登录密码" autofocus>
     <button class="login-btn" id="loginBtn">登录</button>
     <div class="error" id="pwdError">❌ 密码错误，请重新输入</div>
-    <div class="hint">🔑 临时密码：888888（可在设置中修改）</div>
+    <div class="hint">🔑 临时密码可在设置中修改</div>
   </div>
 </div>
 
@@ -432,57 +432,73 @@ function clearSearch(){
 function fetchStockData(code, showLoading=true){
   const name = STOCK_NAMES[code] || code;
   if(showLoading){
-    const area = document.getElementById('analysisArea');
-    area.innerHTML = '<div class="panel" style="text-align:center;padding:30px"><div style="color:#8b949e">📡 获取数据中...</div></div>';
+    document.getElementById('analysisArea').innerHTML =
+      '<div class="panel" style="text-align:center;padding:30px"><div style="color:#8b949e">📡 获取数据中...</div></div>';
   }
 
-  // file:// 协议下直接使用模拟数据（跨域限制）
+  // file:// 协议直接用模拟数据
   if(location.protocol === 'file:'){
     setTimeout(() => {
       genMockData(code, name);
-      document.getElementById('dataStatus').className = 'status mock';
-      document.getElementById('dataStatus').textContent = '● 模拟数据（本地文件）';
+      setDataStatus('mock', '模拟数据（本地文件）');
     }, 300);
     return;
   }
 
+  // 使用 <script> 标签加载新浪接口（绕过 CORS 限制）
   const prefix = code.startsWith('6')||code.startsWith('9') ? 'sh' : 'sz';
-  const url = `https://hq.sinajs.cn/list=${prefix}${code}`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
+  const varName = `hq_str_${prefix}${code}`;
+  delete window[varName];
 
-  fetch(url, { headers: { 'Referer': 'https://finance.sina.com.cn' }, signal: controller.signal })
-    .then(r => r.text())
-    .then(text => {
-      clearTimeout(timeout);
-      const match = text.match(/="([^"]+)"/);
-      if(match){
-        const parts = match[1].split(',');
-        if(parts && parts.length > 3 && parts[1] && !isNaN(parseFloat(parts[1]))){
-          const price = parseFloat(parts[1]);
-          const changePct = parseFloat(parts[3]);
-          const high = parseFloat(parts[4]);
-          const low = parseFloat(parts[5]);
-          const open = parseFloat(parts[2]);
-          const prevClose = parseFloat(parts[2]);
-          const volume = parseInt(parts[8]) || 0;
-          const amount = parseFloat(parts[9]) || 0;
-          const volRatio = +(Math.random()*2+0.5).toFixed(2);
-          const tailRatio = +(Math.random()*1.5+0.5).toFixed(2);
-          renderAnalysis(code, name, price, changePct, high, low, open, prevClose, volRatio, tailRatio, volume, amount, true);
-          document.getElementById('dataStatus').className = 'status live';
-          document.getElementById('dataStatus').textContent = '● 实时数据';
-          return;
-        }
+  const script = document.createElement('script');
+  script.src = `https://hq.sinajs.cn/list=${prefix}${code}`;
+  let done = false;
+
+  script.onload = () => {
+    script.remove();
+    if(done) return;
+    const raw = window[varName];
+    if(raw && typeof raw === 'string'){
+      const parts = raw.split(',');
+      if(parts.length > 10 && parts[1] && !isNaN(parseFloat(parts[1]))){
+        done = true;
+        const price = parseFloat(parts[1]);
+        const changePct = parseFloat(parts[3]);
+        const high = parseFloat(parts[4]);
+        const low = parseFloat(parts[5]);
+        const open = parseFloat(parts[2]);
+        const prevClose = parseFloat(parts[2]);
+        const volume = parseInt(parts[8]) || 0;
+        const amount = parseFloat(parts[9]) || 0;
+        const volRatio = volume > 0 ? +(volume / 50000).toFixed(2) : +(Math.random()*2+0.5).toFixed(2);
+        const tailRatio = +(Math.random()*1.5+0.5).toFixed(2);
+        renderAnalysis(code, name, price, changePct, high, low, open, prevClose, volRatio, tailRatio, volume, amount, true);
+        setDataStatus('live', '● 新浪实时数据');
+        return;
       }
-      throw new Error('parse fail');
-    })
-    .catch(() => {
-      clearTimeout(timeout);
-      genMockData(code, name);
-      document.getElementById('dataStatus').className = 'status mock';
-      document.getElementById('dataStatus').textContent = '● 模拟数据（接口不可达）';
-    });
+    }
+    fallbackMock(code, name);
+  };
+
+  script.onerror = () => {
+    script.remove();
+    if(!done){ done = true; fallbackMock(code, name); }
+  };
+
+  document.head.appendChild(script);
+  setTimeout(() => {
+    if(!done){ done = true; script.remove(); fallbackMock(code, name); }
+  }, 8000);
+}
+
+function fallbackMock(code, name){
+  genMockData(code, name);
+  setDataStatus('mock', '● 模拟数据（接口超时）');
+}
+
+function setDataStatus(cls, text){
+  const el = document.getElementById('dataStatus');
+  if(el){ el.className = 'status ' + cls; el.textContent = text; }
 }
 
 // ── 生成模拟数据 ──
