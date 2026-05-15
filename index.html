@@ -429,7 +429,7 @@ function clearSearch(){
 }
 
 // ── 获取股票数据 ──
-function fetchStockData(code, showLoading=true){
+async function fetchStockData(code, showLoading=true){
   const name = STOCK_NAMES[code] || code;
   if(showLoading){
     document.getElementById('analysisArea').innerHTML =
@@ -445,23 +445,16 @@ function fetchStockData(code, showLoading=true){
     return;
   }
 
-  // 使用 <script> 标签加载腾讯行情接口（绕过 CORS 限制，腾讯接口不验证 Referer）
+  // 腾讯行情 API（支持 CORS，无需 script hack）
   const prefix = code.startsWith('6')||code.startsWith('9') ? 'sh' : 'sz';
-  const varName = `v_${prefix}${code}`;
-  delete window[varName];
-
-  const script = document.createElement('script');
-  script.src = `https://qt.gtimg.cn/q=${prefix}${code}`;
-  let done = false;
-
-  script.onload = () => {
-    script.remove();
-    if(done) return;
-    const raw = window[varName];
-    if(raw && typeof raw === 'string'){
-      const parts = raw.split('~');
+  try {
+    const resp = await fetch(`https://qt.gtimg.cn/q=${prefix}${code}`);
+    const raw = await resp.text(); // 自动按 GBK 解码
+    const start = raw.indexOf('"');
+    const end = raw.indexOf('"', start + 1);
+    if(start !== -1 && end !== -1){
+      const parts = raw.substring(start + 1, end).split('~');
       if(parts.length > 35 && parts[3] && !isNaN(parseFloat(parts[3]))){
-        done = true;
         const price = parseFloat(parts[3]);
         const prevClose = parseFloat(parts[4]);
         const open = parseFloat(parts[5]);
@@ -477,18 +470,8 @@ function fetchStockData(code, showLoading=true){
         return;
       }
     }
-    fallbackMock(code, name);
-  };
-
-  script.onerror = () => {
-    script.remove();
-    if(!done){ done = true; fallbackMock(code, name); }
-  };
-
-  document.head.appendChild(script);
-  setTimeout(() => {
-    if(!done){ done = true; script.remove(); fallbackMock(code, name); }
-  }, 8000);
+  } catch(_) {}
+  fallbackMock(code, name);
 }
 
 function fallbackMock(code, name){
