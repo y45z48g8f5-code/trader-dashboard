@@ -59,6 +59,11 @@ body{background:#0d1117;color:#e6edf3;font-size:14px;overflow:hidden;height:100v
 .blue{color:#58a6ff}
 .sidebar .empty-tip{text-align:center;padding:30px 14px;color:#8b949e;font-size:13px;line-height:1.8}
 
+/* ── 拖拽分隔条 ── */
+.divider{width:5px;background:transparent;cursor:col-resize;flex-shrink:0;position:relative;z-index:5;transition:background .15s}
+.divider:hover,.divider.active{background:#21262d}
+.divider::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:1px;height:24px;background:#30363d;border-radius:2px}
+
 /* ── 中间主区 ── */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:14px 16px 8px;min-width:0}
 .search-bar{display:flex;gap:8px;margin-bottom:12px;flex-shrink:0}
@@ -153,7 +158,7 @@ body{background:#0d1117;color:#e6edf3;font-size:14px;overflow:hidden;height:100v
 
 /* ── 响应式 ── */
 @media(max-width:1100px){.rightbar{width:240px}}
-@media(max-width:800px){.rightbar{display:none}.sidebar{width:180px}.price-grid{grid-template-columns:repeat(2,1fr)}.sr-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:800px){.rightbar,.divider{display:none}.sidebar{width:180px}.price-grid{grid-template-columns:repeat(2,1fr)}.sr-grid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -226,6 +231,7 @@ body{background:#0d1117;color:#e6edf3;font-size:14px;overflow:hidden;height:100v
         <div class="empty-tip" id="emptyTip">暂无自选股<br>输入股票代码并添加到自选股</div>
       </div>
     </div>
+    <div class="divider" id="dividerLeft"></div>
 
     <!-- 中间主区 -->
     <div class="main">
@@ -252,6 +258,7 @@ body{background:#0d1117;color:#e6edf3;font-size:14px;overflow:hidden;height:100v
         </div>
       </div>
     </div>
+    <div class="divider" id="dividerRight"></div>
 
     <!-- 右侧：图表 + 做T助手 -->
     <div class="rightbar">
@@ -959,6 +966,66 @@ document.getElementById('settingsModal').addEventListener('click', function(e){
 
 // ── 初始加载时更新自选股 ──
 calcProfit();
+// ── 面板宽度拖拽 ──
+(function(){
+  const sidebar = document.querySelector('.sidebar');
+  const rightbar = document.querySelector('.rightbar');
+  const dLeft = document.getElementById('dividerLeft');
+  const dRight = document.getElementById('dividerRight');
+  if(!sidebar || !dLeft || !dRight) return;
+
+  // 恢复保存的宽度
+  const savedW = localStorage.getItem('trader_sidebar_w');
+  if(savedW) sidebar.style.width = savedW + 'px';
+  if(window.innerWidth > 800){
+    const savedR = localStorage.getItem('trader_rightbar_w');
+    if(savedR) rightbar.style.width = savedR + 'px';
+  }
+
+  let startX, startW, target;
+
+  function onMouseMove(e){
+    const dx = e.clientX - startX;
+    if(target === sidebar){
+      const w = Math.max(120, Math.min(400, startW + dx));
+      target.style.width = w + 'px';
+      localStorage.setItem('trader_sidebar_w', w);
+    } else if(target === rightbar){
+      const w = Math.max(160, Math.min(500, startW - dx));
+      target.style.width = w + 'px';
+      localStorage.setItem('trader_rightbar_w', w);
+    }
+  }
+
+  function onMouseUp(){
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    document.body.style.pointerEvents = '';
+    dLeft.classList.remove('active');
+    dRight.classList.remove('active');
+  }
+
+  function initDrag(el, t){
+    el.addEventListener('mousedown', e => {
+      e.preventDefault();
+      target = t;
+      startX = e.clientX;
+      startW = t.getBoundingClientRect().width;
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      document.body.style.pointerEvents = 'none';
+      el.classList.add('active');
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+  }
+
+  initDrag(dLeft, sidebar);
+  initDrag(dRight, rightbar);
+})();
+
 // ── PWA 注册 ──
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js');
